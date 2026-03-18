@@ -12,6 +12,7 @@ const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const SERVER_VERSION = '2.0-STATIC-FIX-FINAL';
 
 // ─── Database Setup ────────────────────────────────────────────
 console.log('🔧 Database Configuration:');
@@ -590,7 +591,7 @@ app.get('/api/health', async (req, res) => {
 
     res.json({
       ok: true,
-      server: 'Sunloc Integrated Server v1.0 (PostgreSQL)',
+      server: `Sunloc Integrated Server v1.0 (PostgreSQL) - Build ${SERVER_VERSION}`,
       db: `${process.env.DB_HOST || 'localhost'}:${process.env.DB_PORT || 5432}/${process.env.DB_NAME || 'sunloc'}`,
       planningSavedAt: planningResult.rows[0]?.saved_at || null,
       dprRecords: parseInt(dprResult.rows[0].c),
