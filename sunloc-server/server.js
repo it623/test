@@ -406,9 +406,15 @@ app.get('/api/batches', async (req, res) => {
     
     res.json({ ok: true, batches: uniqueBatches });
   } catch (err) {
+    console.error('ERROR in /api/batches:', err);
     res.status(500).json({ ok: false, error: err.message });
   }
 });
+
+// DEBUG: Test route
+app.get('/test-batches', async (req, res) => {
+  res.json({ ok: true, message: 'Test route works', timestamp: new Date().toISOString() });
+});;
 
 // ═══════════════════════════════════════════════════════════════
 // DPR APP ROUTES
