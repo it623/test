@@ -293,20 +293,10 @@ async function getOrderActuals(orderId, batchNumber) {
 app.get('/api/planning/state', async (req, res) => {
   try {
     const state = await getPlanningState();
-
-    // Enrich orders with live actuals from DPR
-    if (state.orders) {
-      for (const ord of state.orders) {
-        const actual = await getOrderActuals(ord.id, ord.batchNumber);
-        ord.actualProd = parseFloat(actual || 0);
-        if (actual > 0 && ord.status === 'pending') ord.status = 'running';
-      }
-    }
-
+    // Orders already have actualProd from previous DPR sync
     const savedResult = await pool.query(
       'SELECT saved_at FROM planning_state ORDER BY id DESC LIMIT 1'
     );
-
     res.json({
       ok: true,
       state,
@@ -510,26 +500,33 @@ app.post('/api/dpr/save', async (req, res) => {
         }
       }
       
-      const planningState = await getPlanningState();
-      if (planningState && planningState.orders) {
-        let changed = false;
-        for (const ord of planningState.orders) {
-          if (ord.machineId && machineProduction[ord.machineId] !== undefined) {
-            const totalMachineProd = machineProduction[ord.machineId];
-            ord.actualProd = parseFloat(totalMachineProd.toFixed(3));
-            ord.actualQty = parseFloat(totalMachineProd.toFixed(3));
-            if (ord.actualProd > 0 && ord.status === 'pending') ord.status = 'running';
-            changed = true;
+      console.log('DPR Sync: Machine Production =', machineProduction);
+      
+      const planningStateResult = await client.query(
+        'SELECT id, state_json FROM planning_state ORDER BY id DESC LIMIT 1'
+      );
+      
+      if (planningStateResult.rows.length > 0) {
+        const state = planningStateResult.rows[0].state_json;
+        if (state && state.orders) {
+          let changed = false;
+          for (const ord of state.orders) {
+            if (ord.machineId && machineProduction[ord.machineId] !== undefined) {
+              const totalMachineProd = machineProduction[ord.machineId];
+              ord.actualProd = parseFloat(totalMachineProd.toFixed(3));
+              ord.actualQty = parseFloat(totalMachineProd.toFixed(3));
+              if (ord.actualProd > 0 && ord.status === 'pending') ord.status = 'running';
+              changed = true;
+              console.log(`Updated order ${ord.id}: actualProd = ${ord.actualProd}`);
+            }
           }
-        }
-        
-        if (changed) {
-          const existing = await client.query('SELECT id FROM planning_state LIMIT 1');
-          if (existing.rows.length) {
+          
+          if (changed) {
             await client.query(
               'UPDATE planning_state SET state_json = $1, saved_at = CURRENT_TIMESTAMP WHERE id = $2',
-              [planningState, existing.rows[0].id]
+              [state, planningStateResult.rows[0].id]
             );
+            console.log('Updated Planning state with DPR production');
           }
         }
       }
