@@ -1,0 +1,44 @@
+// Sync logic in /api/dpr/save - extract production from DPR data by machine
+const dprData = data;  // data from request body
+
+// Extract TOTAL production from DPR data by machine (sum all shifts)
+const machineProduction = {};
+if (dprData.shifts) {
+  for (const [shiftName, shiftData] of Object.entries(dprData.shifts)) {
+    if (shiftData.machines) {
+      for (const [machineId, machineData] of Object.entries(shiftData.machines)) {
+        if (!machineProduction[machineId]) machineProduction[machineId] = 0;
+        const prod = parseFloat(machineData.prod) || 0;
+        machineProduction[machineId] += prod;  // ADD all shifts for same machine
+      }
+    }
+  }
+}
+
+console.log('Machine Production from DPR:', machineProduction);
+
+// Update Planning orders with actual production from DPR
+const planningState = await getPlanningState();
+if (planningState && planningState.orders) {
+  let changed = false;
+  for (const ord of planningState.orders) {
+    if (ord.machineId && machineProduction[ord.machineId] !== undefined) {
+      const totalMachineProd = machineProduction[ord.machineId];
+      ord.actualProd = parseFloat(totalMachineProd.toFixed(3));
+      ord.actualQty = parseFloat(totalMachineProd.toFixed(3));
+      if (ord.actualProd > 0 && ord.status === 'pending') ord.status = 'running';
+      changed = true;
+    }
+  }
+  
+  if (changed) {
+    const existing = await client.query('SELECT id FROM planning_state LIMIT 1');
+    if (existing.rows.length) {
+      await client.query(
+        'UPDATE planning_state SET state_json = $1, saved_at = CURRENT_TIMESTAMP WHERE id = $2',
+        [planningState, existing.rows[0].id]
+      );
+      console.log('✅ Updated Planning orders with DPR production');
+    }
+  }
+}
