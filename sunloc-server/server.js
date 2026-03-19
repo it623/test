@@ -46,7 +46,12 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(cors());
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  credentials: false,
+  optionsSuccessStatus: 200
+}));
 app.use(express.json({ limit: '10mb' }));
 
 // ─── Create Tables Function ────────────────────────────────────
