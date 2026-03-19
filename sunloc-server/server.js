@@ -891,8 +891,20 @@ app.get('/api/tracking/wip-summary', async (req, res) => {
 // STATIC FILE SERVING (MUST be after all /api/* routes)
 // ═══════════════════════════════════════════════════════════════
 
-app.use(express.static(path.join(__dirname, 'public')));
+// Static file serving with SPA fallback
+app.use(express.static(path.join(__dirname, 'public'), {
+  // If file doesn't exist, don't call next() - handle it ourselves
+  setHeaders: (res, path) => {
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+  }
+}));
+
+// Only serve index.html as fallback for non-API paths
 app.get('*', (req, res) => {
+  // Never serve HTML for /api/* paths - they should have been caught by routes
+  if (req.path.startsWith('/api/')) {
+    return res.status(404).json({ ok: false, error: 'API endpoint not found' });
+  }
   const idx = path.join(__dirname, 'public', 'index.html');
   if (fs.existsSync(idx)) res.sendFile(idx);
   else res.json({ ok: false, error: 'No frontend found.' });
