@@ -10,7 +10,7 @@ COPY sunloc-server/sunloc-api-client.js ./
 COPY sunloc-server/public/ ./public/
 
 # Install dependencies
-RUN npm install --production
+RUN npm install --production && echo "Build time: $(date)"
 
 # Expose port
 EXPOSE 3000
