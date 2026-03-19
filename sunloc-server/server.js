@@ -12,7 +12,7 @@ const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const SERVER_VERSION = '2.0-STATIC-FIX-FINAL';
+const SERVER_VERSION = '3.0-BATCH-SYNC-FINAL-v3';
 
 // ─── Database Setup ────────────────────────────────────────────
 console.log('🔧 Database Configuration:');
