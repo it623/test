@@ -298,7 +298,7 @@ app.get('/api/planning/state', async (req, res) => {
     if (state.orders) {
       for (const ord of state.orders) {
         const actual = await getOrderActuals(ord.id, ord.batchNumber);
-        ord.actualProd = actual;
+        ord.actualProd = parseFloat(actual || 0);
         if (actual > 0 && ord.status === 'pending') ord.status = 'running';
       }
     }
@@ -507,7 +507,9 @@ app.post('/api/dpr/save', async (req, res) => {
         for (const row of orderActuals.rows) {
           const ord = planningState.orders.find(o => o.id === row.order_id);
           if (ord) {
-            ord.actualQty = parseFloat(row.total_qty?.toFixed(3)) || 0;
+            ord.actualProd = parseFloat(row.total_qty?.toFixed(3)) || 0;
+            ord.actualQty = parseFloat(row.total_qty?.toFixed(3)) || 0;  // Update both fields for compatibility
+            if (ord.actualProd > 0 && ord.status === 'pending') ord.status = 'running';
             changed = true;
           }
         }
