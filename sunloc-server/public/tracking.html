@@ -721,28 +721,32 @@ function configureServer(){
 async function pullFromServer(){
   if(!serverUrl) return;
   try{
+    setSyncBadge('syncing');
+    // Step 1: Fetch tracking state
     const r=await fetch(serverUrl+'/api/tracking/state',{signal:AbortSignal.timeout(8000)});
-    if(!r.ok) return;
+    if(!r.ok) { setSyncBadge('offline'); return; }
     const j=await r.json();
     if(j.ok && j.state){
-      // Merge labels: keep local labels not yet on server (by id), then overlay server labels
       const serverLabelIds = new Set((j.state.labels||[]).map(l=>l.id));
       const localOnlyLabels = state.labels.filter(l=>!serverLabelIds.has(l.id));
       Object.assign(state, j.state);
-      // Re-add any local-only labels (generated but not yet confirmed saved on server)
       if(localOnlyLabels.length>0){
         state.labels = [...state.labels, ...localOnlyLabels];
       }
     }
-    // Pull batches from dedicated /api/batches endpoint
+    // Step 2: Fetch batches from Planning App via dedicated endpoint
+    console.log('🔄 Fetching batches from /api/batches...');
     const br=await fetch(serverUrl+'/api/batches',{signal:AbortSignal.timeout(8000)});
     if(br.ok){
       const bj=await br.json();
       if(bj.ok && bj.batches){
         state.batches = bj.batches.filter(b=>!b.deleted);
+        console.log('✅ Loaded ' + state.batches.length + ' batches from Planning App');
       }
+    } else {
+      console.warn('⚠️ /api/batches returned status', br.status);
     }
-    // Also pull planning orders for machine master data
+    // Step 3: Fetch machine master data
     const pr=await fetch(serverUrl+'/api/planning/state',{signal:AbortSignal.timeout(8000)});
     if(pr.ok){
       const pj=await pr.json();
@@ -753,7 +757,10 @@ async function pullFromServer(){
     saveLocal();
     setSyncBadge('synced');
     if(currentPage) renderPage(currentPage);
-  }catch(e){ setSyncBadge('offline'); }
+  }catch(e){ 
+    console.error('pullFromServer error:', e);
+    setSyncBadge('offline'); 
+  }
 }
 
 async function pushToServer(endpoint, data){
@@ -776,7 +783,7 @@ function loadState(){
     const saved=localStorage.getItem('sunloc_tracking');
     if(saved){ const p=JSON.parse(saved); Object.assign(state,p); }
   }catch{}
-  // Pull from server immediately — batches from Planning must load on every login
+  // ALWAYS pull from server first on every app load — batches MUST come from Planning App
   if(serverUrl){
     pullFromServer();
   }
