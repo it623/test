@@ -41,6 +41,11 @@ pool.on('error', (err) => {
 // CRITICAL: API ROUTES MUST BE DEFINED BEFORE STATIC FILE SERVING
 // ═══════════════════════════════════════════════════════════════════════════════════
 
+app.use((req, res, next) => {
+  res.setHeader('X-Server-Build', '20260319-v4-ROUTES-FIRST');
+  next();
+});
+
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
