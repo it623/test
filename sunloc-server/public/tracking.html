@@ -449,7 +449,13 @@ let scanCallback = null;
 
 // Local state - loaded from server + localStorage
 let state = {
-  batches: [],       // from planning app
+  batches: [
+    {batchNumber:'BT046',orderId:'ord1',customer:'AVIS',qty:54,size:'2',status:'running'},
+    {batchNumber:'BT077',orderId:'ord2',customer:'SHYAM',qty:54,size:'2',status:'running'},
+    {batchNumber:'BT001',orderId:'ord3',customer:'ALKEM',qty:55,size:'2',status:'running'},
+    {batchNumber:'BT002',orderId:'ord4',customer:'CIPLA',qty:50,size:'1',status:'running'},
+    {batchNumber:'BT003',orderId:'ord5',customer:'LUPIN',qty:60,size:'3',status:'pending'}
+  ],
   labels: [],        // generated labels
   scans: [],         // all scan events
   stageClosure: [],  // per batch per dept closure
