@@ -495,24 +495,34 @@ app.post('/api/dpr/save', async (req, res) => {
     }
 
     try {
+      const dprData = data;
+      const machineProduction = {};
+      
+      if (dprData.shifts) {
+        for (const [shiftName, shiftData] of Object.entries(dprData.shifts)) {
+          if (shiftData.machines) {
+            for (const [machineId, machineData] of Object.entries(shiftData.machines)) {
+              if (!machineProduction[machineId]) machineProduction[machineId] = 0;
+              const prod = parseFloat(machineData.prod) || 0;
+              machineProduction[machineId] += prod;
+            }
+          }
+        }
+      }
+      
       const planningState = await getPlanningState();
       if (planningState && planningState.orders) {
-        const orderActuals = await client.query(
-          `SELECT order_id, SUM(qty_lakhs) as total_qty
-           FROM production_actuals
-           WHERE order_id IS NOT NULL AND order_id != ''
-           GROUP BY order_id`
-        );
         let changed = false;
-        for (const row of orderActuals.rows) {
-          const ord = planningState.orders.find(o => o.id === row.order_id);
-          if (ord) {
-            ord.actualProd = parseFloat(row.total_qty?.toFixed(3)) || 0;
-            ord.actualQty = parseFloat(row.total_qty?.toFixed(3)) || 0;  // Update both fields for compatibility
+        for (const ord of planningState.orders) {
+          if (ord.machineId && machineProduction[ord.machineId] !== undefined) {
+            const totalMachineProd = machineProduction[ord.machineId];
+            ord.actualProd = parseFloat(totalMachineProd.toFixed(3));
+            ord.actualQty = parseFloat(totalMachineProd.toFixed(3));
             if (ord.actualProd > 0 && ord.status === 'pending') ord.status = 'running';
             changed = true;
           }
         }
+        
         if (changed) {
           const existing = await client.query('SELECT id FROM planning_state LIMIT 1');
           if (existing.rows.length) {
@@ -524,7 +534,7 @@ app.post('/api/dpr/save', async (req, res) => {
         }
       }
     } catch (syncErr) {
-      console.error('Planning actualQty sync error:', syncErr.message);
+      console.error('Planning actualProd sync error:', syncErr.message);
     }
 
     await client.query('COMMIT');
