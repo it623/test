@@ -37,20 +37,12 @@ pool.on('error', (err) => {
   console.error('❌ Unexpected error on idle client:', err.message);
 });
 
-// ═══════════════════════════════════════════════════════
-// CRITICAL: API Routes MUST come before static files
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════════
+// CRITICAL: API ROUTES MUST BE DEFINED BEFORE STATIC FILE SERVING
+// ═══════════════════════════════════════════════════════════════════════════════════
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
-
-// BLOCK static middleware from catching /api/* paths
-app.use((req, res, next) => {
-  if (req.path.startsWith('/api/') || req.path.startsWith('/test-')) {
-    return next(); // Skip static file serving, go to routes
-  }
-  next();
-});
 
 // ─── Create Tables Function ────────────────────────────────────
 async function createTables() {
@@ -303,7 +295,6 @@ async function getOrderActuals(orderId, batchNumber) {
 app.get('/api/planning/state', async (req, res) => {
   try {
     const state = await getPlanningState();
-    // Orders already have actualProd from previous DPR sync
     const savedResult = await pool.query(
       'SELECT saved_at FROM planning_state ORDER BY id DESC LIMIT 1'
     );
@@ -378,11 +369,11 @@ app.get('/api/orders/active', async (req, res) => {
 // ═══════════════════════════════════════════════════════════════
 
 app.get('/api/batches', async (req, res) => {
+  console.log('✅ /api/batches route CALLED');
   try {
     const state = await getPlanningState();
     const orders = state.orders || [];
     
-    // Extract unique batch numbers from orders
     const batches = orders
       .filter(o => o.batchNumber && o.status !== 'closed' && !o.deleted)
       .map(o => ({
@@ -395,7 +386,6 @@ app.get('/api/batches', async (req, res) => {
         status: o.status || 'pending'
       }));
     
-    // Remove duplicates
     const uniqueBatches = [];
     const seen = new Set();
     for (const batch of batches) {
@@ -412,10 +402,10 @@ app.get('/api/batches', async (req, res) => {
   }
 });
 
-// DEBUG: Test route
 app.get('/test-batches', async (req, res) => {
+  console.log('✅ /test-batches route CALLED');
   res.json({ ok: true, message: 'Test route works', timestamp: new Date().toISOString() });
-});;
+});
 
 // ═══════════════════════════════════════════════════════════════
 // DPR APP ROUTES
@@ -510,8 +500,6 @@ app.post('/api/dpr/save', async (req, res) => {
         }
       }
       
-      console.log('DPR Sync: Machine Production =', machineProduction);
-      
       const planningStateResult = await client.query(
         'SELECT id, state_json FROM planning_state ORDER BY id DESC LIMIT 1'
       );
@@ -527,7 +515,6 @@ app.post('/api/dpr/save', async (req, res) => {
               ord.actualQty = parseFloat(totalMachineProd.toFixed(3));
               if (ord.actualProd > 0 && ord.status === 'pending') ord.status = 'running';
               changed = true;
-              console.log(`Updated order ${ord.id}: actualProd = ${ord.actualProd}`);
             }
           }
           
@@ -536,7 +523,6 @@ app.post('/api/dpr/save', async (req, res) => {
               'UPDATE planning_state SET state_json = $1, saved_at = CURRENT_TIMESTAMP WHERE id = $2',
               [state, planningStateResult.rows[0].id]
             );
-            console.log('Updated Planning state with DPR production');
           }
         }
       }
@@ -625,7 +611,6 @@ app.get('/api/health', async (req, res) => {
     });
   }
 });
-
 
 app.get('/api/tracking/state', async (req, res) => {
   try {
@@ -887,30 +872,23 @@ app.get('/api/tracking/wip-summary', async (req, res) => {
   }
 });
 
-// ═══════════════════════════════════════════════════════════════
-// STATIC FILE SERVING (MUST be after all /api/* routes)
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════════
+// STATIC FILE SERVING - ONLY FOR NON-API PATHS
+// ═══════════════════════════════════════════════════════════════════════════════════
 
-// Static file serving with SPA fallback
-app.use(express.static(path.join(__dirname, 'public'), {
-  // If file doesn't exist, don't call next() - handle it ourselves
-  setHeaders: (res, path) => {
-    res.setHeader('Cache-Control', 'public, max-age=3600');
-  }
-}));
+// Serve static files (HTML, CSS, JS, etc.) ONLY
+app.use(express.static(path.join(__dirname, 'public')));
 
-// Only serve index.html as fallback for non-API paths
-app.get('*', (req, res) => {
-  // Never serve HTML for /api/* paths - they should have been caught by routes
-  if (req.path.startsWith('/api/')) {
-    return res.status(404).json({ ok: false, error: 'API endpoint not found' });
-  }
+// SPA fallback - serve index.html for all non-API, non-file paths
+app.get('/', (req, res) => {
   const idx = path.join(__dirname, 'public', 'index.html');
   if (fs.existsSync(idx)) res.sendFile(idx);
   else res.json({ ok: false, error: 'No frontend found.' });
 });
 
-// ─── Start Server ─────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════════
+// START SERVER
+// ═══════════════════════════════════════════════════════════════════════════════════
 
 async function start() {
   try {
