@@ -10,7 +10,10 @@ COPY sunloc-server/sunloc-api-client.js ./
 COPY sunloc-server/public/ ./public/
 
 # Install dependencies
-RUN npm install --production && echo "Build time: $(date)"
+RUN npm install --production
+
+# Force fresh build - timestamp: 2026-03-19T07:30:00Z
+RUN echo "Building at $(date)" && echo "Random: $RANDOM"
 
 # Expose port
 EXPOSE 3000
