@@ -37,10 +37,20 @@ pool.on('error', (err) => {
   console.error('❌ Unexpected error on idle client:', err.message);
 });
 
-// ─── Middleware ────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════
+// CRITICAL: API Routes MUST come before static files
+// ═══════════════════════════════════════════════════════
+
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
-// Static file serving moved to AFTER API routes
+
+// BLOCK static middleware from catching /api/* paths
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api/') || req.path.startsWith('/test-')) {
+    return next(); // Skip static file serving, go to routes
+  }
+  next();
+});
 
 // ─── Create Tables Function ────────────────────────────────────
 async function createTables() {
